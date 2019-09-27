@@ -9,8 +9,10 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+
+	ctxaws "multipart-upload-to-s3-using-presign-url/server/context/aws"
+
 	"github.com/aws/aws-sdk-go/service/s3"
-	ctxaws "github.com/cut2it/truth-src/system/bus/context/aws"
 )
 
 //AWSService is AWS service context
@@ -31,7 +33,7 @@ func getBucketNameByType(bucketType string) (bucketName string) {
 	return
 }
 
-// StartUpload initiates a multipart upload and returns an upload ID.
+//StartUpload initiates a multipart upload and returns an upload ID.
 func (a *AWSService) StartUpload(r *http.Request, args *ctxaws.StartUploadArgs, reply *ctxaws.StartUploadResp) error {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String(region),
@@ -57,35 +59,7 @@ func (a *AWSService) StartUpload(r *http.Request, args *ctxaws.StartUploadArgs, 
 	return nil
 }
 
-
-
-// GetUploadURL return aws presign url for given uploading part.
-func (a *AWSService) GetUploadURL(r *http.Request, args *ctxaws.GetUploadURLArgs, reply *ctxaws.GetUploadURLResp) error {
-	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(region),
-	})
-
-	// Create S3 service client
-	svc := s3.New(sess)
-	req, _ := svc.UploadPartRequest(&s3.UploadPartInput{
-		Bucket:     aws.String(getBucketNameByType(args.BucketType)),
-		Key:        aws.String(args.MediaID),
-		PartNumber: aws.Int64(args.PartNumber),
-		UploadId:   aws.String(args.UploadID),
-	})
-
-	urlStr, err := req.Presign(30 * time.Minute)
-
-	if err != nil {
-		fmt.Println(err.Error())
-		*reply = ctxaws.GetUploadURLResp{URL: "", Error: err.Error()}
-	} else {
-		*reply = ctxaws.GetUploadURLResp{URL: urlStr, Error: ""}
-	}
-	return nil
-}
-
-// CompleteUpload Completes a multipart upload by assembling previously uploaded parts.
+//CompleteUpload Completes a multipart upload by assembling previously uploaded parts.
 func (a *AWSService) CompleteUpload(r *http.Request, args *ctxaws.CompleteUploadURLArgs, reply *ctxaws.CompleteUploadURLResp) error {
 	var parts []*s3.CompletedPart
 
@@ -118,6 +92,32 @@ func (a *AWSService) CompleteUpload(r *http.Request, args *ctxaws.CompleteUpload
 		*reply = ctxaws.CompleteUploadURLResp{Status: false, Error: err.Error()}
 	} else {
 		*reply = ctxaws.CompleteUploadURLResp{Status: true, Error: ""}
+	}
+	return nil
+}
+
+// GetUploadURL return aws presign url for given uploading part.
+func (a *AWSService) GetUploadURL(r *http.Request, args *ctxaws.GetUploadURLArgs, reply *ctxaws.GetUploadURLResp) error {
+	sess, err := session.NewSession(&aws.Config{
+		Region: aws.String(region),
+	})
+
+	// Create S3 service client
+	svc := s3.New(sess)
+	req, _ := svc.UploadPartRequest(&s3.UploadPartInput{
+		Bucket:     aws.String(getBucketNameByType(args.BucketType)),
+		Key:        aws.String(args.MediaID),
+		PartNumber: aws.Int64(args.PartNumber),
+		UploadId:   aws.String(args.UploadID),
+	})
+
+	urlStr, err := req.Presign(30 * time.Minute)
+
+	if err != nil {
+		fmt.Println(err.Error())
+		*reply = ctxaws.GetUploadURLResp{URL: "", Error: err.Error()}
+	} else {
+		*reply = ctxaws.GetUploadURLResp{URL: urlStr, Error: ""}
 	}
 	return nil
 }
