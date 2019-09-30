@@ -24,7 +24,7 @@ var region = "us-east-1"
 func getBucketNameByType(bucketType string) (bucketName string) {
 	switch bucketType {
 	case "image":
-		bucketName = "videomine-images"
+		bucketName = "videomine-test"
 	case "video":
 		bucketName = "videomine-videos"
 	default:
@@ -130,11 +130,11 @@ func (a *AWSService) GetUploadURL(r *http.Request, args *ctxaws.GetUploadURLArgs
 
 	// Create S3 service client
 	svc := s3.New(sess)
-	// mediaID := strconv.Itoa(rand.Intn(10))
+	mediaID := strconv.Itoa(rand.Intn(1000))
 
 	req, _ := svc.PutObjectRequest(&s3.PutObjectInput{
 		Bucket: aws.String(getBucketNameByType(args.BucketType)),
-		Key:    aws.String("ijaj2.jpg"),
+		Key:    aws.String(mediaID),
 	})
 
 	urlStr, err := req.Presign(30 * time.Minute)
