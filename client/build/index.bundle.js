@@ -114,7 +114,7 @@ var AWSUtility = function AWSUtility() {
 
   _babel_runtime_helpers_classCallCheck__WEBPACK_IMPORTED_MODULE_2___default()(this, AWSUtility);
 
-  _babel_runtime_helpers_defineProperty__WEBPACK_IMPORTED_MODULE_3___default()(this, "PART_SIZE", 100 * 1024 * 1024);
+  _babel_runtime_helpers_defineProperty__WEBPACK_IMPORTED_MODULE_3___default()(this, "PART_SIZE", 50 * 1024 * 1024);
 
   _babel_runtime_helpers_defineProperty__WEBPACK_IMPORTED_MODULE_3___default()(this, "file", void 0);
 
@@ -129,13 +129,17 @@ var AWSUtility = function AWSUtility() {
       type: _this.file.type,
       size: _this.file.size
     };
-    _this.sendBackData = null;
+    var NUM_CHUNKS = Math.floor(_this.fileInfo.size / _this.PART_SIZE) + 1;
 
-    _this.createMultipartUpload(bucketType, function (response) {
-      _this.sendBackData = response.result;
+    if (NUM_CHUNKS > 1) {
+      _this.createMultipartUpload(bucketType, function (response) {
+        _this.sendBackData = response.result;
 
-      _this.uploadMultipartFile(bucketType, callback);
-    });
+        _this.uploadMultipartFile(bucketType, callback);
+      });
+    } else {
+      _this.uploadSingle(bucketType, callback);
+    }
   });
 
   _babel_runtime_helpers_defineProperty__WEBPACK_IMPORTED_MODULE_3___default()(this, "createMultipartUpload", function (bucketType, callback) {
@@ -144,32 +148,69 @@ var AWSUtility = function AWSUtility() {
       BucketType: bucketType
     };
 
-    _this.postData('AWSService.StartUpload', reqParams, function (err) {
+    _this.postData('AWSService.StartMultipartUpload', reqParams, function (err) {
       return console.dir(err);
     }, function (res) {
       return callback(res);
     });
   });
 
-  _babel_runtime_helpers_defineProperty__WEBPACK_IMPORTED_MODULE_3___default()(this, "uploadMultipartFile",
+  _babel_runtime_helpers_defineProperty__WEBPACK_IMPORTED_MODULE_3___default()(this, "uploadSingle",
   /*#__PURE__*/
   function () {
     var _ref = _babel_runtime_helpers_asyncToGenerator__WEBPACK_IMPORTED_MODULE_1___default()(
     /*#__PURE__*/
     _babel_runtime_regenerator__WEBPACK_IMPORTED_MODULE_0___default.a.mark(function _callee(bucketType, callback) {
-      var NUM_CHUNKS, promisesArray, index, start, end, blob, urlResponse, promise, resolvedArray, uploadPartsArray;
+      var urlResponse;
       return _babel_runtime_regenerator__WEBPACK_IMPORTED_MODULE_0___default.a.wrap(function _callee$(_context) {
         while (1) {
           switch (_context.prev = _context.next) {
             case 0:
-              _context.prev = 0;
+              _context.next = 2;
+              return _this.getUploadUrl({
+                BucketType: bucketType,
+                ContentType: _this.fileInfo.type
+              });
+
+            case 2:
+              urlResponse = _context.sent;
+
+              _this.uploadPart(urlResponse.result.URL, _this.file.slice(0)).then(function () {
+                callback();
+              });
+
+            case 4:
+            case "end":
+              return _context.stop();
+          }
+        }
+      }, _callee);
+    }));
+
+    return function (_x, _x2) {
+      return _ref.apply(this, arguments);
+    };
+  }());
+
+  _babel_runtime_helpers_defineProperty__WEBPACK_IMPORTED_MODULE_3___default()(this, "uploadMultipartFile",
+  /*#__PURE__*/
+  function () {
+    var _ref2 = _babel_runtime_helpers_asyncToGenerator__WEBPACK_IMPORTED_MODULE_1___default()(
+    /*#__PURE__*/
+    _babel_runtime_regenerator__WEBPACK_IMPORTED_MODULE_0___default.a.mark(function _callee2(bucketType, callback) {
+      var NUM_CHUNKS, promisesArray, index, start, end, blob, urlResponse, promise, resolvedArray, uploadPartsArray;
+      return _babel_runtime_regenerator__WEBPACK_IMPORTED_MODULE_0___default.a.wrap(function _callee2$(_context2) {
+        while (1) {
+          switch (_context2.prev = _context2.next) {
+            case 0:
+              _context2.prev = 0;
               NUM_CHUNKS = Math.floor(_this.fileInfo.size / _this.PART_SIZE) + 1;
               promisesArray = [];
               index = 1;
 
             case 4:
               if (!(index < NUM_CHUNKS + 1)) {
-                _context.next = 17;
+                _context2.next = 17;
                 break;
               }
 
@@ -177,8 +218,8 @@ var AWSUtility = function AWSUtility() {
               start = (index - 1) * _this.PART_SIZE;
               end = index * _this.PART_SIZE;
               blob = index < NUM_CHUNKS ? _this.file.slice(start, end) : _this.file.slice(start);
-              _context.next = 11;
-              return _this.getUploadUrl({
+              _context2.next = 11;
+              return _this.getMultipartUploadUrl({
                 MediaID: _this.sendBackData.MediaID,
                 PartNumber: index,
                 UploadId: _this.sendBackData.UploadID,
@@ -186,21 +227,21 @@ var AWSUtility = function AWSUtility() {
               });
 
             case 11:
-              urlResponse = _context.sent;
+              urlResponse = _context2.sent;
               promise = _this.uploadPart(urlResponse.result.URL, blob);
               promisesArray.push(promise);
 
             case 14:
               index++;
-              _context.next = 4;
+              _context2.next = 4;
               break;
 
             case 17:
-              _context.next = 19;
+              _context2.next = 19;
               return Promise.all(promisesArray);
 
             case 19:
-              resolvedArray = _context.sent;
+              resolvedArray = _context2.sent;
               console.log(resolvedArray, ' resolvedAr');
               uploadPartsArray = [];
               resolvedArray.forEach(function (resolvedPromise, index) {
@@ -214,26 +255,36 @@ var AWSUtility = function AWSUtility() {
 
               _this.completeUpload(uploadPartsArray, bucketType, callback);
 
-              _context.next = 29;
+              _context2.next = 29;
               break;
 
             case 26:
-              _context.prev = 26;
-              _context.t0 = _context["catch"](0);
-              console.log(_context.t0);
+              _context2.prev = 26;
+              _context2.t0 = _context2["catch"](0);
+              console.log(_context2.t0);
 
             case 29:
             case "end":
-              return _context.stop();
+              return _context2.stop();
           }
         }
-      }, _callee, null, [[0, 26]]);
+      }, _callee2, null, [[0, 26]]);
     }));
 
-    return function (_x, _x2) {
-      return _ref.apply(this, arguments);
+    return function (_x3, _x4) {
+      return _ref2.apply(this, arguments);
     };
   }());
+
+  _babel_runtime_helpers_defineProperty__WEBPACK_IMPORTED_MODULE_3___default()(this, "getMultipartUploadUrl", function (params) {
+    return new Promise(function (resolve, reject) {
+      _this.postData('AWSService.GetMultipartUploadURL', params, function (err) {
+        return reject(err);
+      }, function (res) {
+        return resolve(res);
+      });
+    });
+  });
 
   _babel_runtime_helpers_defineProperty__WEBPACK_IMPORTED_MODULE_3___default()(this, "getUploadUrl", function (params) {
     return new Promise(function (resolve, reject) {
@@ -257,7 +308,7 @@ var AWSUtility = function AWSUtility() {
       BucketType: bucketType
     };
 
-    _this.postData('AWSService.CompleteUpload', params, function (err) {
+    _this.postData('AWSService.CompleteMultipartUpload', params, function (err) {
       return console.dir(err);
     }, function (res) {
       return callback(res);
@@ -317,10 +368,13 @@ var AWSUtility = function AWSUtility() {
     });
   });
 
-  _babel_runtime_helpers_defineProperty__WEBPACK_IMPORTED_MODULE_3___default()(this, "putData", function (url, data) {
+  _babel_runtime_helpers_defineProperty__WEBPACK_IMPORTED_MODULE_3___default()(this, "putData", function (url, data, type) {
     return fetch(url, {
       method: "PUT",
-      body: data
+      body: data,
+      headers: {
+        'Content-Type': type
+      }
     });
   });
 };

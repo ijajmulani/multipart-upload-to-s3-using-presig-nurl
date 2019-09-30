@@ -1,5 +1,5 @@
 export default class AWSUtility {
-  PART_SIZE = 100 * 1024 * 1024; // 100MB // Minimum part size defined by aws s3 is 5 MB, maximum 5 GB
+  PART_SIZE = 50 * 1024 * 1024; // 100MB // Minimum part size defined by aws s3 is 5 MB, maximum 5 GB
   file;
   fileInfo = {};
   sendBackData = null;
@@ -12,11 +12,16 @@ export default class AWSUtility {
       type: this.file.type,
       size: this.file.size,
     };
-    this.sendBackData = null;
-    this.createMultipartUpload(bucketType, response => {
-      this.sendBackData = response.result;
-      this.uploadMultipartFile(bucketType, callback);
-    });
+
+    const NUM_CHUNKS = Math.floor(this.fileInfo.size / this.PART_SIZE) + 1;
+    if (NUM_CHUNKS > 1) {
+      this.createMultipartUpload(bucketType, response => {
+        this.sendBackData = response.result;
+        this.uploadMultipartFile(bucketType, callback);
+      });
+    } else {
+      this.uploadSingle(bucketType, callback)
+    }
   }
 
   createMultipartUpload = (bucketType, callback) => {
@@ -25,11 +30,22 @@ export default class AWSUtility {
       BucketType: bucketType,
     };
     this.postData(
-      'AWSService.StartUpload',
+      'AWSService.StartMultipartUpload',
       reqParams,
       err => console.dir(err),
       res => callback(res)
     );
+  }
+
+  uploadSingle = async (bucketType, callback) => {
+    const urlResponse = await this.getUploadUrl({
+      BucketType: bucketType,
+      ContentType: this.fileInfo.type,
+    });
+
+    this.uploadPart(urlResponse.result.URL, this.file.slice(0)).then(() => {
+      callback();
+    });
   }
 
   uploadMultipartFile = async (bucketType, callback) => {
@@ -43,7 +59,7 @@ export default class AWSUtility {
         end = (index) * this.PART_SIZE
         blob = (index < NUM_CHUNKS) ? this.file.slice(start, end) : this.file.slice(start)
 
-        const urlResponse = await this.getUploadUrl({
+        const urlResponse = await this.getMultipartUploadUrl({
           MediaID: this.sendBackData.MediaID,
           PartNumber: index,
           UploadId: this.sendBackData.UploadID,
@@ -72,6 +88,17 @@ export default class AWSUtility {
     }
   }
 
+  getMultipartUploadUrl = (params) => {
+    return new Promise((resolve, reject) => {
+      this.postData(
+        'AWSService.GetMultipartUploadURL',
+        params,
+        err => reject(err),
+        res => resolve(res)
+      );
+    });
+  }
+
   getUploadUrl = (params) => {
     return new Promise((resolve, reject) => {
       this.postData(
@@ -95,7 +122,7 @@ export default class AWSUtility {
       BucketType: bucketType,
     }
     this.postData(
-      'AWSService.CompleteUpload',
+      'AWSService.CompleteMultipartUpload',
       params,
       err => console.dir(err),
       res => callback(res)
@@ -140,10 +167,13 @@ export default class AWSUtility {
       });
   }
 
-  putData = (url, data) => {
+  putData = (url, data, type) => {
     return fetch(url, {
       method: "PUT",
       body: data,
+      headers: {
+        'Content-Type': type,
+      },
     })
   }
 }
